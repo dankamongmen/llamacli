@@ -13,7 +13,7 @@ try:
     payload['username'] = os.environ['LLAMA']
     payload['password'] = os.environ['PASSWORD']
 except KeyError:
-    print("please define environment variables LLAMA and PASSWORD")
+    print('please define environment variables LLAMA and PASSWORD')
     sys.exit(1)
 
 class LLamaShell(cmd.Cmd):
@@ -41,6 +41,8 @@ class LLamaShell(cmd.Cmd):
         return True
 
 class MDParser(html.parser.HTMLParser):
+    season = 0
+    matchday = 0
     checkdata = False
     checklabel = False
     gotlabel = False
@@ -58,10 +60,14 @@ class MDParser(html.parser.HTMLParser):
             else:
                 self.gotlabel = False
         if self.gotlabel and self.checkdata:
-            if re.match('LL\\d\\d', data):
-                print(data) #FIXME stash this
-            elif re.match('Match Day', data):
-                print(data) #FIXME stash this
+            llfm = re.fullmatch('LL(\\d+)', data)
+            if llfm:
+                self.season = llfm.group(1)
+                return
+            mdfm = re.fullmatch('Match Day (\\d+)', data)
+            if mdfm:
+                self.matchday = mdfm.group(1)
+                return
     def handle_endtag(self, tag):
         if tag == 'div' or tag == 'a':
             self.checkdata = False
@@ -71,7 +77,12 @@ if __name__ == '__main__':
     llama = str.lower(payload['username'])
     with requests.Session() as s:
         hpage = s.get('https://learnedleague.com/')
-        MDParser().feed(hpage.text)
+        mdp = MDParser()
+        mdp.feed(hpage.text)
+        if mdp.season == 0 or mdp.matchday == 0:
+            print('couldn\'t get season/matchday, exiting')
+            sys.exit(1)
+        print('LL', mdp.season, 'MD', mdp.matchday)
         p = s.post('https://www.learnedleague.com/ucp.php?mode=login', data=payload)
         #print(p.status_code)
         #print(p.headers)
